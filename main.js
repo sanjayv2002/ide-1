@@ -1,4 +1,5 @@
-const { app, BrowserWindow, Menu } = require('electron');
+const { app, BrowserWindow, Menu, dialog } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const url = require('url');
 
@@ -49,6 +50,40 @@ function createTerminalWindow() {
     });
 }
 
+function openFile() {
+    dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile']
+    }).then(result => {
+        if (!result.canceled) {
+            const filePath = result.filePaths[0];
+            fs.readFile(filePath, (err, data) => {
+                if (err) {
+                    console.error(err);
+                } else {
+                    mainWindow.webContents.send('file-opened', filePath, data.toString());
+                }
+            });
+        }
+    });
+}
+
+function saveFile(content) {
+    dialog.showSaveDialog(mainWindow, {
+        properties: ['createDirectory', 'showOverwriteConfirmation'],
+        filters: [{ name: 'Text Files', extensions: ['txt']}]
+    }).then(result => {
+        if (!result.canceled) {
+            const filePath = result.filePath;
+            fs.writeFile(filePath, content, err => {
+                if (err) {
+                    console.error(err);
+                } else {
+                    mainWindow.webContents.send('file-saved', filePath);
+                }
+            });
+        }
+    });
+}
 app.on('ready', function(){
     createMainWindow();
     const mainMenu = Menu.buildFromTemplate([
@@ -56,16 +91,32 @@ app.on('ready', function(){
             label: 'File',
             submenu: [
                 {
-                    label: 'New File'
+                    label: 'New File',
+                    accelerator: 'CmdOrCtrl+N',
+                    click() {
+                        mainWindow.webContents.send('new-file');
+                    }
                 },
                 {
-                    label: 'Open File'
+                    label: 'Open File',
+                    accelerator: 'CmdOrCtrl+O',
+                    click() {
+                    mainWindow.webContents.send('open-file');
+                    }
                 },
                 {
-                    label: 'Save File'
+                    label: 'Save File',
+                    accelerator: 'CmdOrCtrl+S',
+                    click() {
+                      mainWindow.webContents.send('save-file');
+                    }                    
                 },
                 {
-                    label: 'Save As...'
+                    label: 'Save As...',
+                    click() {
+                        const content = mainWindow.webContents.executeJavaScript('editor.getValue()');
+                        saveFile(content);
+                    }
                 },
                 {
                     type: 'separator'
